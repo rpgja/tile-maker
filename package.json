@@ -1,0 +1,19 @@
+{
+  "name": "tile-maker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tailwindcss -i ./style.css -o ./dist/output.css --minify"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "volta": {
+    "node": "22.19.0",
+    "pnpm": "10.15.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.3"
+  }
+}

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海面パターンのドット絵アニメーションメーカー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1a202c;
+        }
+
+        /* ピクセルグリッドの背景 */
+        .pixel-canvas-container {
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0 10px;
+        }
+
+        #pixel-canvas {
+            border: 2px solid #334155;
+            cursor: default;
+            image-rendering: pixelated;
+        }
+
+        /* アニメーションプレビューのアンチエイリアスを解除 */
+        #preview-canvas {
+            image-rendering: pixelated;
+        }
+
+        .control-btn {
+            @apply bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105;
+        }
+
+        .control-btn-danger {
+            @apply bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105;
+        }
+
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background-color: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .frame-thumbnail {
+            width: 64px;
+            height: 64px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            transition: transform 0.2s, border-color 0.2s;
+            image-rendering: pixelated;
+        }
+
+        .frame-thumbnail:hover {
+            transform: scale(1.1);
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 p-8">
+    <div class="container mx-auto p-6 bg-white rounded-xl shadow-2xl max-w-6xl">
+        <h1 class="text-3xl font-bold text-center mb-6">🌊 海面パターンのドット絵アニメーションメーカー</h1>
+        <p class="text-center text-gray-600 mb-8">レトロゲームにぴったりの、タイル化可能な海面アニメーションを自動生成します。</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+            <!-- キャンバスと操作パネル -->
+            <div class="flex flex-col items-center">
+                <div class="pixel-canvas-container rounded-lg overflow-hidden mb-4">
+                    <canvas id="pixel-canvas" width="320" height="320"></canvas>
+                </div>
+
+                <!-- フレームナビゲーション -->
+                <div class="flex items-center space-x-4 mb-4">
+                    <button id="prev-frame" class="control-btn p-3">←</button>
+                    <span id="frame-info" class="text-lg font-medium">フレーム 1 / 1</span>
+                    <button id="next-frame" class="control-btn p-3">→</button>
+                </div>
+
+                <!-- アクションボタン -->
+                <div class="flex flex-col items-center space-y-4 w-full px-4">
+                    <button id="auto-generate" class="control-btn w-full bg-green-500 hover:bg-green-600">自動生成</button>
+                    <button id="play-animation" class="control-btn w-full">アニメーションを再生</button>
+                    <button id="download-all-frames"
+                        class="control-btn w-full bg-blue-500 hover:bg-blue-600">全フレームをPNGでダウンロード</button>
+                </div>
+            </div>
+
+            <!-- プレビューとギャラリー -->
+            <div class="flex flex-col items-center md:items-start">
+                <!-- アニメーションプレビュー -->
+                <div class="mb-6 w-full">
+                    <h2 class="text-xl font-semibold mb-2">🎬 アニメーションプレビュー</h2>
+                    <div class="bg-gray-200 p-2 rounded-lg text-center">
+                        <canvas id="preview-canvas" width="192" height="192"
+                            class="block mx-auto rounded-md border-2 border-gray-400"></canvas>
+                    </div>
+                </div>
+
+                <!-- フレームギャラリー -->
+                <div class="mb-6 w-full">
+                    <h2 class="text-xl font-semibold mb-2">🖼️ フレームギャラリー (クリックしてダウンロード)</h2>
+                    <div id="frame-gallery"
+                        class="flex flex-wrap gap-2 justify-center md:justify-start bg-gray-200 p-2 rounded-lg">
+                        <!-- フレームのサムネイルがここに動的に追加されます -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- メッセージボックス（デフォルトは非表示） -->
+    <div id="message-box" class="message-box hidden">
+        <div id="message-text" class="text-center text-lg mb-4"></div>
+        <button id="message-close" class="control-btn block mx-auto">閉じる</button>
+    </div>
+
+    <!-- 自動生成用モーダル -->
+    <div id="generate-modal" class="message-box hidden">
+        <h2 class="text-xl font-semibold mb-4 text-center">生成するフレーム数を入力</h2>
+        <input type="number" id="frame-count-input" value="8" min="2" max="32"
+            class="w-full p-2 border rounded-md mb-4 text-center">
+        <div class="flex justify-around">
+            <button id="confirm-generate" class="control-btn px-6">生成</button>
+            <button id="cancel-generate" class="control-btn-danger px-6">キャンセル</button>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript for the pixel art app
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // === DOM要素 ===
+            const canvas = document.getElementById('pixel-canvas');
+            const ctx = canvas.getContext('2d');
+            const previewCanvas = document.getElementById('preview-canvas');
+            const previewCtx = previewCanvas.getContext('2d');
+            const frameInfoSpan = document.getElementById('frame-info');
+            const prevFrameBtn = document.getElementById('prev-frame');
+            const nextFrameBtn = document.getElementById('next-frame');
+            const playAnimationBtn = document.getElementById('play-animation');
+            const downloadAllFramesBtn = document.getElementById('download-all-frames');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+            const messageCloseBtn = document.getElementById('message-close');
+            const autoGenerateBtn = document.getElementById('auto-generate');
+            const generateModal = document.getElementById('generate-modal');
+            const frameCountInput = document.getElementById('frame-count-input');
+            const confirmGenerateBtn = document.getElementById('confirm-generate');
+            const cancelGenerateBtn = document.getElementById('cancel-generate');
+            const frameGallery = document.getElementById('frame-gallery');
+
+            // === 定数と状態変数 ===
+            const PIXEL_SIZE = 16;
+            const CANVAS_SCALE = 20;
+            const FRAME_RATE = 200; // ミリ秒
+            const CANVAS_SIZE = PIXEL_SIZE * CANVAS_SCALE;
+
+            // キャンバスのサイズを設定
+            canvas.width = CANVAS_SIZE;
+            canvas.height = CANVAS_SIZE;
+
+            let frames = [];
+            let currentFrameIndex = 0;
+            let animationInterval = null;
+
+            // 自動生成用のカラーパレット
+            const autoGenColors = ['#006699', '#3399cc', '#99ccff', '#cceeff'];
+
+            // === 関数 ===
+
+            // メッセージボックスを表示する関数
+            function showMessage(text) {
+                messageText.textContent = text;
+                messageBox.classList.remove('hidden');
+            }
+
+            // メッセージボックスを非表示にする関数
+            function hideMessage() {
+                messageBox.classList.add('hidden');
+            }
+
+            // フレームのデータをキャンバスに描画
+            function drawFrame(frameData) {
+                ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                for (let i = 0; i < PIXEL_SIZE * PIXEL_SIZE; i++) {
+                    const x = (i % PIXEL_SIZE) * CANVAS_SCALE;
+                    const y = Math.floor(i / PIXEL_SIZE) * CANVAS_SCALE;
+                    ctx.fillStyle = frameData[i];
+                    ctx.fillRect(x, y, CANVAS_SCALE, CANVAS_SCALE);
+                }
+            }
+
+            // フレーム情報を更新
+            function updateFrameInfo() {
+                frameInfoSpan.textContent = `フレーム ${currentFrameIndex + 1} / ${frames.length}`;
+                drawFrame(frames[currentFrameIndex]);
+                updateFrameGallery();
+            }
+
+            // アニメーションプレビューの描画 (9枚タイル状に描画)
+            function drawPreviewFrame(frameData) {
+                const previewPixelSize = 4; // 16x16 -> 64x64
+                const previewTileSize = 64; // 元のプレビューサイズ
+                const tiledSize = previewTileSize * 3;
+                previewCanvas.width = tiledSize;
+                previewCanvas.height = tiledSize;
+                previewCtx.clearRect(0, 0, tiledSize, tiledSize);
+
+                // アンチエイリアスを無効にする
+                previewCtx.imageSmoothingEnabled = false;
+                previewCtx.mozImageSmoothingEnabled = false; // Firefox向け
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = PIXEL_SIZE;
+                tempCanvas.height = PIXEL_SIZE;
+                const tempCtx = tempCanvas.getContext('2d');
+                for (let i = 0; i < PIXEL_SIZE * PIXEL_SIZE; i++) {
+                    const x = i % PIXEL_SIZE;
+                    const y = Math.floor(i / PIXEL_SIZE);
+                    tempCtx.fillStyle = frameData[i];
+                    tempCtx.fillRect(x, y, 1, 1);
+                }
+
+                // 3x3 のタイル状に描画
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        previewCtx.drawImage(tempCanvas, col * previewTileSize, row * previewTileSize, previewTileSize, previewTileSize);
+                    }
+                }
+            }
+
+            // アニメーションを再生
+            function playAnimation() {
+                if (animationInterval) {
+                    clearInterval(animationInterval);
+                    animationInterval = null;
+                    playAnimationBtn.textContent = 'アニメーションを再生';
+                    return;
+                }
+
+                playAnimationBtn.textContent = '停止';
+                let frameIndex = 0;
+                animationInterval = setInterval(() => {
+                    drawPreviewFrame(frames[frameIndex]);
+                    frameIndex = (frameIndex + 1) % frames.length;
+                }, FRAME_RATE);
+            }
+
+            // ギャラリーを更新
+            function updateFrameGallery() {
+                frameGallery.innerHTML = '';
+                frames.forEach((frameData, index) => {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = PIXEL_SIZE;
+                    tempCanvas.height = PIXEL_SIZE;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    for (let i = 0; i < PIXEL_SIZE * PIXEL_SIZE; i++) {
+                        const x = i % PIXEL_SIZE;
+                        const y = Math.floor(i / PIXEL_SIZE);
+                        tempCtx.fillStyle = frameData[i];
+                        tempCtx.fillRect(x, y, 1, 1);
+                    }
+                    const dataURL = tempCanvas.toDataURL('image/png');
+
+                    const img = new Image();
+                    img.src = dataURL;
+                    img.classList.add('frame-thumbnail');
+                    img.title = `フレーム ${index + 1} (クリックしてダウンロード)`;
+
+                    img.addEventListener('click', () => {
+                        downloadFrame(dataURL, `sea_frame_${String(index + 1).padStart(2, '0')}.png`);
+                    });
+
+                    frameGallery.appendChild(img);
+                });
+            }
+
+            // 単一フレームをダウンロード
+            function downloadFrame(dataURL, filename) {
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showMessage(`${filename} をダウンロードしました！`);
+            }
+
+            // 全フレームをPNGとしてダウンロード
+            function downloadAllFrames() {
+                if (frames.length === 0) {
+                    showMessage('ダウンロードするフレームがありません。');
+                    return;
+                }
+
+                frames.forEach((frameData, index) => {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = PIXEL_SIZE;
+                    tempCanvas.height = PIXEL_SIZE;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    for (let i = 0; i < PIXEL_SIZE * PIXEL_SIZE; i++) {
+                        const x = i % PIXEL_SIZE;
+                        const y = Math.floor(i / PIXEL_SIZE);
+                        tempCtx.fillStyle = frameData[i];
+                        tempCtx.fillRect(x, y, 1, 1);
+                    }
+                    const dataURL = tempCanvas.toDataURL('image/png');
+                    downloadFrame(dataURL, `sea_frame_${String(index + 1).padStart(2, '0')}.png`);
+                });
+
+                showMessage('全フレームをダウンロードしました！');
+            }
+
+            // === 自動生成機能 ===
+            function autoGenerateFrames(frameCount) {
+                const generatedFrames = [];
+                const numColors = autoGenColors.length;
+
+                // アニメーションの最初と最後が完璧につながるよう、周期的な変数を設定
+                const tStep = (2 * Math.PI) / frameCount;
+
+                for (let f = 0; f < frameCount; f++) {
+                    const newFrame = [];
+                    for (let y = 0; y < PIXEL_SIZE; y++) {
+                        for (let x = 0; x < PIXEL_SIZE; x++) {
+                            // X、Y、時間の3次元で滑らかな波パターンを生成
+                            // 複数の波を組み合わせることで、複雑なパターンを作る
+                            const wave1 = Math.sin((x / PIXEL_SIZE) * 2 * Math.PI + (f * tStep));
+                            const wave2 = Math.sin((y / PIXEL_SIZE) * 2 * Math.PI - (f * tStep));
+                            const wave3 = Math.cos((x / PIXEL_SIZE) * 2 * Math.PI + (y / PIXEL_SIZE) * 2 * Math.PI + (f * tStep));
+
+                            // 組み合わせた波の値を正規化
+                            const combinedWave = (wave1 + wave2 + wave3) / 3;
+                            const normalizedValue = (combinedWave + 1) / 2;
+
+                            // 正規化された値に基づいて、パレットから色を選択
+                            const colorIndex = Math.floor(normalizedValue * numColors);
+                            newFrame.push(autoGenColors[Math.min(colorIndex, numColors - 1)]);
+                        }
+                    }
+                    generatedFrames.push(newFrame);
+                }
+                return generatedFrames;
+            }
+
+            // === イベントリスナー ===
+
+            // フレームナビゲーション
+            prevFrameBtn.addEventListener('click', () => {
+                if (currentFrameIndex > 0) {
+                    currentFrameIndex--;
+                    updateFrameInfo();
+                } else {
+                    showMessage('最初のフレームです。');
+                }
+            });
+
+            nextFrameBtn.addEventListener('click', () => {
+                if (currentFrameIndex < frames.length - 1) {
+                    currentFrameIndex++;
+                    updateFrameInfo();
+                } else {
+                    showMessage('最後のフレームです。');
+                }
+            });
+
+            // アニメーション再生
+            playAnimationBtn.addEventListener('click', playAnimation);
+
+            // 全フレームダウンロード
+            downloadAllFramesBtn.addEventListener('click', downloadAllFrames);
+
+            // メッセージボックスの閉じるボタン
+            messageCloseBtn.addEventListener('click', hideMessage);
+
+            // 自動生成モーダルを開く
+            autoGenerateBtn.addEventListener('click', () => {
+                generateModal.classList.remove('hidden');
+            });
+
+            // 自動生成の確認
+            confirmGenerateBtn.addEventListener('click', () => {
+                const frameCount = parseInt(frameCountInput.value, 10);
+                if (frameCount < 2 || frameCount > 32 || isNaN(frameCount)) {
+                    showMessage('2から32の間の有効な数値を入力してください。');
+                    return;
+                }
+
+                generateModal.classList.add('hidden');
+                frames = autoGenerateFrames(frameCount);
+                currentFrameIndex = 0;
+                updateFrameInfo();
+                showMessage(`${frameCount}個のフレームを自動生成しました！`);
+            });
+
+            // 自動生成のキャンセル
+            cancelGenerateBtn.addEventListener('click', () => {
+                generateModal.classList.add('hidden');
+            });
+
+
+            // === 初期化 ===
+            // 最初のフレームを作成して、初期状態を設定
+            frames = autoGenerateFrames(8); // デフォルトで8フレーム生成
+            updateFrameInfo();
+        });
+    </script>
+</body>
+
+</html>
