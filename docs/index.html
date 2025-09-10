@@ -6,137 +6,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>海面パターンのドット絵アニメーションメーカー</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            color: #1a202c;
-        }
-
-        /* ピクセルグリッドの背景 */
-        .pixel-canvas-container {
-            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(135deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(135deg, transparent 75%, #ccc 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 10px 0, 10px -10px, 0 10px;
-        }
-
-        #pixel-canvas {
-            border: 2px solid #334155;
-            cursor: default;
-            image-rendering: pixelated;
-        }
-
-        /* アニメーションプレビューのアンチエイリアスを解除 */
-        #preview-canvas {
-            image-rendering: pixelated;
-        }
-
-        .control-btn {
-            @apply bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105;
-        }
-
-        .control-btn-danger {
-            @apply bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105;
-        }
-
-        .message-box {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-            background-color: white;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .frame-thumbnail {
-            width: 64px;
-            height: 64px;
-            cursor: pointer;
-            border: 2px solid transparent;
-            border-radius: 8px;
-            transition: transform 0.2s, border-color 0.2s;
-            image-rendering: pixelated;
-        }
-
-        .frame-thumbnail:hover {
-            transform: scale(1.1);
-            border-color: #3b82f6;
-        }
-    </style>
 </head>
 
-<body class="bg-gray-100 p-8">
+<body class="bg-gray-100 flex justify-center items-center min-h-screen text-gray-800 p-8 font-sans">
     <div class="container mx-auto p-6 bg-white rounded-xl shadow-2xl max-w-6xl">
         <h1 class="text-3xl font-bold text-center mb-6">🌊 海面パターンのドット絵アニメーションメーカー</h1>
         <p class="text-center text-gray-600 mb-8">レトロゲームにぴったりの、タイル化可能な海面アニメーションを自動生成します。</p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-            <!-- キャンバスと操作パネル -->
             <div class="flex flex-col items-center">
-                <div class="pixel-canvas-container rounded-lg overflow-hidden mb-4">
-                    <canvas id="pixel-canvas" width="320" height="320"></canvas>
+                <div class="rounded-lg overflow-hidden mb-4 border-4 border-gray-400" style="
+                    background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(135deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(135deg, transparent 75%, #e5e7eb 75%);
+                    background-size: 20px 20px;
+                    background-position: 0 0, 10px 0, 10px -10px, 0 10px;
+                ">
+                    <canvas id="pixel-canvas" width="320" height="320" class="border-2 border-slate-700 cursor-default" style="image-rendering: pixelated;"></canvas>
                 </div>
 
-                <!-- フレームナビゲーション -->
                 <div class="flex items-center space-x-4 mb-4">
-                    <button id="prev-frame" class="control-btn p-3">←</button>
+                    <button id="prev-frame" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 p-3">←</button>
                     <span id="frame-info" class="text-lg font-medium">フレーム 1 / 1</span>
-                    <button id="next-frame" class="control-btn p-3">→</button>
+                    <button id="next-frame" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 p-3">→</button>
                 </div>
 
-                <!-- アクションボタン -->
                 <div class="flex flex-col items-center space-y-4 w-full px-4">
-                    <button id="auto-generate" class="control-btn w-full bg-green-500 hover:bg-green-600">自動生成</button>
-                    <button id="play-animation" class="control-btn w-full">アニメーションを再生</button>
-                    <button id="download-all-frames"
-                        class="control-btn w-full bg-blue-500 hover:bg-blue-600">全フレームをPNGでダウンロード</button>
+                    <button id="auto-generate" class="w-full text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-green-500 hover:bg-green-600">自動生成</button>
+                    <button id="play-animation" class="w-full text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-blue-500 hover:bg-blue-600">アニメーションを再生</button>
+                    <button id="download-all-frames" class="w-full text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-blue-500 hover:bg-blue-600">全フレームをPNGでダウンロード</button>
                 </div>
             </div>
 
-            <!-- プレビューとギャラリー -->
             <div class="flex flex-col items-center md:items-start">
-                <!-- アニメーションプレビュー -->
                 <div class="mb-6 w-full">
                     <h2 class="text-xl font-semibold mb-2">🎬 アニメーションプレビュー</h2>
                     <div class="bg-gray-200 p-2 rounded-lg text-center">
-                        <canvas id="preview-canvas" width="192" height="192"
-                            class="block mx-auto rounded-md border-2 border-gray-400"></canvas>
+                        <canvas id="preview-canvas" width="192" height="192" class="block mx-auto rounded-md border-2 border-gray-400" style="image-rendering: pixelated;"></canvas>
                     </div>
                 </div>
 
-                <!-- フレームギャラリー -->
                 <div class="mb-6 w-full">
                     <h2 class="text-xl font-semibold mb-2">🖼️ フレームギャラリー (クリックしてダウンロード)</h2>
-                    <div id="frame-gallery"
-                        class="flex flex-wrap gap-2 justify-center md:justify-start bg-gray-200 p-2 rounded-lg">
-                        <!-- フレームのサムネイルがここに動的に追加されます -->
-                    </div>
+                    <div id="frame-gallery" class="flex flex-wrap gap-2 justify-center md:justify-start bg-gray-200 p-2 rounded-lg">
+                        </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- メッセージボックス（デフォルトは非表示） -->
-    <div id="message-box" class="message-box hidden">
+    <div id="message-box" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-white p-6 rounded-xl shadow-2xl">
         <div id="message-text" class="text-center text-lg mb-4"></div>
-        <button id="message-close" class="control-btn block mx-auto">閉じる</button>
+        <button id="message-close" class="text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-blue-500 hover:bg-blue-600 block mx-auto">閉じる</button>
     </div>
 
-    <!-- 自動生成用モーダル -->
-    <div id="generate-modal" class="message-box hidden">
+    <div id="generate-modal" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-white p-6 rounded-xl shadow-2xl">
         <h2 class="text-xl font-semibold mb-4 text-center">生成するフレーム数を入力</h2>
-        <input type="number" id="frame-count-input" value="8" min="2" max="32"
-            class="w-full p-2 border rounded-md mb-4 text-center">
+        <input type="number" id="frame-count-input" value="8" min="2" max="32" class="w-full p-2 border rounded-md mb-4 text-center">
         <div class="flex justify-around">
-            <button id="confirm-generate" class="control-btn px-6">生成</button>
-            <button id="cancel-generate" class="control-btn-danger px-6">キャンセル</button>
+            <button id="confirm-generate" class="text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-blue-500 hover:bg-blue-600 px-6">生成</button>
+            <button id="cancel-generate" class="text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform transform hover:scale-105 bg-red-500 hover:bg-red-600 px-6">キャンセル</button>
         </div>
     </div>
 
@@ -279,7 +206,8 @@
 
                     const img = new Image();
                     img.src = dataURL;
-                    img.classList.add('frame-thumbnail');
+                    img.classList.add('w-16', 'h-16', 'cursor-pointer', 'border-2', 'border-transparent', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-110', 'hover:border-blue-500');
+                    img.style.imageRendering = 'pixelated';
                     img.title = `フレーム ${index + 1} (クリックしてダウンロード)`;
 
                     img.addEventListener('click', () => {
